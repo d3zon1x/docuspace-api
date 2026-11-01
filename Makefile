@@ -42,9 +42,8 @@ typecheck:
 test:
 	$(PYTHON) -m pytest
 
-# DB in Docker; API on host (good for PyCharm / local debug)
+# DB in Docker
 dev:
 	docker compose up -d db
-	$(PYTHON) -m uvicorn app.main:create_app --factory --reload --host $(HOST) --port $(PORT)
 
 local: dev

@@ -21,3 +21,4 @@ htmlcov/
 Thumbs.db
 coverage.xml
 .tox/
+.cursor/
