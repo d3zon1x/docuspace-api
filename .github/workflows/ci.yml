@@ -28,6 +28,22 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: docuspace
+          POSTGRES_PASSWORD: docuspace
+          POSTGRES_DB: docuspace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U docuspace -d docuspace"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql+psycopg://docuspace:docuspace@localhost:5432/docuspace
     steps:
       - uses: actions/checkout@v5
 
@@ -39,6 +55,9 @@ jobs:
 
       - name: Sync dependencies (incl. dev)
         run: uv sync --all-groups --frozen
+
+      - name: Apply Alembic migrations
+        run: uv run alembic upgrade head
 
       - run: uv run pytest
 

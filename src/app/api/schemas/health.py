@@ -1,4 +1,4 @@
-"""Health check response schemas."""
+"""Health and readiness response schemas."""
 
 from typing import Literal
 
@@ -9,3 +9,10 @@ class HealthResponse(BaseModel):
     """Liveness response."""
 
     status: Literal["ok"] = Field(default="ok")
+
+
+class ReadinessResponse(BaseModel):
+    """Database readiness response."""
+
+    status: Literal["ready", "unavailable"]
+    database: Literal["ok", "unavailable"]

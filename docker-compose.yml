@@ -1,27 +1,29 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
-      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-docuspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docuspace}
+      POSTGRES_DB: ${POSTGRES_DB:-docuspace}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-app} -d $${POSTGRES_DB:-app}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-docuspace} -d $${POSTGRES_DB:-docuspace}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   api:
     build: .
+    restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-docuspace}:${POSTGRES_PASSWORD:-docuspace}@db:5432/${POSTGRES_DB:-docuspace}
     ports:
       - "8000:8000"
     depends_on:

@@ -30,8 +30,9 @@ src/app/
   services/       # business logic
   repositories/   # data access
   models/         # ORM / data models
-  core/           # config
+  core/           # config, database
   main.py         # FastAPI app factory
+migrations/       # Alembic migrations
 tests/
 ```
 
@@ -43,7 +44,8 @@ tests/
 | `make lock` | Refresh `uv.lock` |
 | `make up` | Docker Compose (db + api) |
 | `make down` | Stop stack |
-| `make dev` | DB in Docker, API with reload (`uv run uvicorn …`) |
+| `make dev` | DB in Docker, migrations + API with reload (`uv run uvicorn …`) |
+| `make migrate` | Apply Alembic migrations (`uv run alembic upgrade head`) |
 | `make lint` | ruff + mypy via `uv run` |
 | `make test` | pytest via `uv run` |
 
@@ -83,6 +85,7 @@ tests/
 | Method | Path | Description |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Service liveness check |
+| `GET` | `/ready` | Database readiness check (`SELECT 1`) |
 | `POST` | `/auth` | Register a new user account (`login`, `email`, `password`, `repeat_password`) |
 | `GET` | `/auth/verify` | *(Side feature)* Verify a user's email address via signed token |
 | `POST` | `/login` | Authenticate user (by `login` or `email`) and issue a 1-hour JWT |

@@ -32,6 +32,8 @@ WORKDIR /app
 
 COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appgroup /app/src /app/src
+COPY --chown=appuser:appgroup alembic.ini ./alembic.ini
+COPY --chown=appuser:appgroup migrations ./migrations
 
 USER appuser
 EXPOSE 8000
@@ -39,4 +41,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)" || exit 1
 
-CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"]

@@ -10,9 +10,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
+    "alembic>=1.13.2",
     "fastapi>=0.115.0",
+    "psycopg[binary]>=3.2.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
+    "sqlalchemy>=2.0.35",
     "uvicorn>=0.30.0",
 ]
 
@@ -59,7 +62,10 @@ strict_equality = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra --cov=app --cov-report=term-missing"
+addopts = "--strict-markers -ra --cov=app --cov-report=term-missing"
+markers = [
+    "integration: marks tests that require a running PostgreSQL database",
+]
 
 [tool.coverage.run]
 source = ["src/app"]

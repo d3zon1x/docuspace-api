@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     debug: bool = Field(default=True)
     log_level: str = Field(default="INFO")
     database_url: str = Field(
-        default="postgresql+psycopg://app:app@localhost:5432/app",
+        default="postgresql+psycopg://docuspace:docuspace@localhost:5432/docuspace",
     )
 
 
