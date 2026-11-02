@@ -16,7 +16,8 @@ dependencies = [
     "uvicorn>=0.30.0",
 ]
 
-[project.optional-dependencies]
+# Dev tools managed by uv (`uv sync --group dev` / `uv sync --all-groups`)
+[dependency-groups]
 dev = [
     "httpx>=0.27.2",
     "mypy>=1.11.2",
@@ -27,6 +28,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
+
+[tool.uv]
+package = true
 
 [tool.ruff]
 target-version = "py312"

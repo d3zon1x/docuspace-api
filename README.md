@@ -2,18 +2,21 @@
 
 Layered FastAPI service: **api → services → repositories**.
 
+Managed with **[uv](https://docs.astral.sh/uv/)** (venv, installs, lockfile).
+
 ## Quick start
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+# install uv once: https://docs.astral.sh/uv/getting-started/installation/
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 cp .env.example .env
-make up
+make install          # uv sync --all-groups  → creates .venv + installs deps
+make up               # docker compose: db + api
 curl -s localhost:8000/health
 ```
 
-Local API (Postgres in Docker):
+Local API (Postgres in Docker, API with reload):
 
 ```bash
 make dev
@@ -36,9 +39,10 @@ tests/
 
 | Target | Description |
 | --- | --- |
-| `make install` | Create venv and install deps |
+| `make install` / `make sync` | `uv sync --all-groups` |
+| `make lock` | Refresh `uv.lock` |
 | `make up` | Docker Compose (db + api) |
 | `make down` | Stop stack |
-| `make dev` / `make local` | DB in Docker, API with reload on host |
-| `make lint` | ruff + mypy |
-| `make test` | pytest |
+| `make dev` | DB in Docker, API with reload (`uv run uvicorn …`) |
+| `make lint` | ruff + mypy via `uv run` |
+| `make test` | pytest via `uv run` |
