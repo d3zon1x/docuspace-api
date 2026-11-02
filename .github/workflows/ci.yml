@@ -52,6 +52,6 @@ jobs:
         with:
           context: .
           push: false
-          tags: projects-api:${{ github.sha }}
+          tags: docuspace-api:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

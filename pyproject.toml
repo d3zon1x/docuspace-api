@@ -3,9 +3,9 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "projects-api"
+name = "docuspace-api"
 version = "0.1.0"
-description = "Projects API — create, update, share and manage projects and documents"
+description = "DocuSpace API — create, update, share and manage projects and documents"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field(default="Projects API")
+    app_name: str = Field(default="DocuSpace API")
     debug: bool = Field(default=True)
     log_level: str = Field(default="INFO")
     database_url: str = Field(
