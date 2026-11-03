@@ -36,14 +36,9 @@ class TokenResponse(BaseModel):
     expires_in: int
 
 
-@router.post(
-    "/auth",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/auth", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(
-    payload: RegisterRequest,
-    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    payload: RegisterRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ) -> UserResponse:
     user = auth_service.register(
         login=payload.login,
@@ -53,11 +48,7 @@ def register_user(
     return UserResponse.model_validate(user)
 
 
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
-)
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 def login_user(
     payload: LoginRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],

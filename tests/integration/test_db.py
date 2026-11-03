@@ -46,10 +46,5 @@ def test_migrations_created_all_core_tables() -> None:
     finally:
         db_manager.close()
 
-    expected_tables = {
-        User.__tablename__,
-        Project.__tablename__,
-        ProjectMember.__tablename__,
-        Document.__tablename__,
-    }
+    expected_tables = {User.__tablename__, Project.__tablename__, ProjectMember.__tablename__, Document.__tablename__}
     assert expected_tables.issubset(existing_tables)

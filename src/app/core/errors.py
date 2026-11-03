@@ -79,10 +79,7 @@ async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-async def validation_error_handler(
-    _request: Request,
-    exc: Exception,
-) -> JSONResponse:
+async def validation_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     """Convert Pydantic/FastAPI 422 validation errors into the unified error format."""
     if isinstance(exc, RequestValidationError):
         errors = exc.errors()

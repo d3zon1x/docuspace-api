@@ -10,8 +10,10 @@ from app.core.database import DatabaseManager
 from app.core.errors import UnauthorizedError
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.repositories.project import ProjectRepository, ProjectRepositoryProtocol
 from app.repositories.user import UserRepository, UserRepositoryProtocol
 from app.services.auth import AuthService
+from app.services.project import ProjectService
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -35,10 +37,12 @@ def get_db_session(request: Request) -> Iterator[Session]:
         session.close()
 
 
-def get_user_repository(
-    session: Annotated[Session, Depends(get_db_session)],
-) -> UserRepositoryProtocol:
+def get_user_repository(session: Annotated[Session, Depends(get_db_session)]) -> UserRepositoryProtocol:
     return UserRepository(session)
+
+
+def get_project_repository(session: Annotated[Session, Depends(get_db_session)]) -> ProjectRepositoryProtocol:
+    return ProjectRepository(session)
 
 
 def get_auth_service(
@@ -46,6 +50,13 @@ def get_auth_service(
     settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> AuthService:
     return AuthService(user_repo, settings)
+
+
+def get_project_service(
+    project_repo: Annotated[ProjectRepositoryProtocol, Depends(get_project_repository)],
+    user_repo: Annotated[UserRepositoryProtocol, Depends(get_user_repository)],
+) -> ProjectService:
+    return ProjectService(project_repo, user_repo)
 
 
 def get_current_user(

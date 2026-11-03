@@ -26,11 +26,7 @@ def get_db_checker(request: Request) -> DbChecker:
     return lambda: False
 
 
-@router.get(
-    "/health",
-    response_model=HealthResponse,
-    status_code=status.HTTP_200_OK,
-)
+@router.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
 

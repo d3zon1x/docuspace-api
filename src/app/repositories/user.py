@@ -15,7 +15,7 @@ class UserRepositoryProtocol(Protocol):
     def create(self, *, login: str, password_hash: str) -> User: ...
 
 
-class UserRepository:
+class UserRepository(UserRepositoryProtocol):
     def __init__(self, session: Session) -> None:
         self._session = session
 

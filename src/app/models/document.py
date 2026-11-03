@@ -13,9 +13,7 @@ def _utc_now() -> datetime:
 
 class Document(Base):
     __tablename__ = "documents"
-    __table_args__ = (
-        UniqueConstraint("project_id", "filename", name="uq_documents_project_filename"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "filename", name="uq_documents_project_filename"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
