@@ -48,10 +48,8 @@ test:
 migrate:
 	$(UV) run alembic upgrade head
 
-# DB in Docker; API on host via uv-managed venv
+# DB in Docker
 dev:
 	docker compose up -d db
-	$(UV) run alembic upgrade head
-	$(UV) run uvicorn app.main:create_app --factory --reload --host $(HOST) --port $(PORT)
 
 local: dev
