@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app.api.routers.health import get_db_checker
+from app.api.health import get_db_checker
 from app.main import create_app
 
 

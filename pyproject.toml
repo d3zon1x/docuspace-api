@@ -11,7 +11,6 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "alembic>=1.13.2",
-    "email-validator>=2.2.0",
     "fastapi>=0.115.0",
     "psycopg[binary]>=3.2.0",
     "pwdlib[bcrypt]>=0.2.1",

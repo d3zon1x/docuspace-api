@@ -7,7 +7,7 @@ from sqlalchemy import inspect
 from app.core.config import Settings, get_settings
 from app.core.database import DatabaseManager
 from app.main import create_app
-from app.models import Document, DocumentVersion, Project, ProjectMember, User
+from app.models import Document, Project, ProjectMember, User
 
 
 @pytest.mark.integration
@@ -38,7 +38,7 @@ def test_ready_returns_503_when_postgresql_unreachable() -> None:
 
 @pytest.mark.integration
 def test_migrations_created_all_core_tables() -> None:
-    """Verify that Alembic migrations created all 5 ORM tables in PostgreSQL."""
+    """Verify that Alembic migrations created all 4 core ORM tables in PostgreSQL."""
     db_manager = DatabaseManager.from_settings(get_settings())
     try:
         inspector = inspect(db_manager.engine)
@@ -51,6 +51,5 @@ def test_migrations_created_all_core_tables() -> None:
         Project.__tablename__,
         ProjectMember.__tablename__,
         Document.__tablename__,
-        DocumentVersion.__tablename__,
     }
     assert expected_tables.issubset(existing_tables)

@@ -1,1 +1,1 @@
-"""API layer: HTTP routers, request/response schemas, and FastAPI dependencies."""
+"""API layer: HTTP routes and request/response schemas defined together."""

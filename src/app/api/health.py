@@ -1,20 +1,25 @@
-"""Liveness (`/health`) and database readiness (`/ready`) endpoints."""
-
 from collections.abc import Callable
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
-
-from app.api.schemas.health import HealthResponse, ReadinessResponse
+from pydantic import BaseModel, Field
 
 DbChecker = Callable[[], bool]
 
 router = APIRouter(tags=["health"])
 
 
+class HealthResponse(BaseModel):
+    status: Literal["ok"] = Field(default="ok")
+
+
+class ReadinessResponse(BaseModel):
+    status: Literal["ready", "unavailable"]
+    database: Literal["ok", "unavailable"]
+
+
 def get_db_checker(request: Request) -> DbChecker:
-    """Resolve the database connectivity checker from application state."""
     checker = getattr(request.app.state, "db_checker", None)
     if callable(checker):
         return cast(DbChecker, checker)
@@ -27,7 +32,6 @@ def get_db_checker(request: Request) -> DbChecker:
     status_code=status.HTTP_200_OK,
 )
 def health() -> HealthResponse:
-    """Return 200 when the HTTP server process is up."""
     return HealthResponse(status="ok")
 
 
@@ -42,7 +46,6 @@ def health() -> HealthResponse:
 def ready(
     check_db: Annotated[DbChecker, Depends(get_db_checker)],
 ) -> JSONResponse:
-    """Execute `SELECT 1` against PostgreSQL and return 200 if reachable or 503 otherwise."""
     if check_db():
         payload = ReadinessResponse(status="ready", database="ok")
         return JSONResponse(status_code=status.HTTP_200_OK, content=payload.model_dump())

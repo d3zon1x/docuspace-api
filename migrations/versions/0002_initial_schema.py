@@ -1,4 +1,4 @@
-"""Initial schema for users, projects, project_members, documents, and document_versions.
+"""Initial schema for users, projects, project_members, and documents.
 
 Revision ID: 0002_initial_schema
 Revises: 0001_baseline
@@ -22,14 +22,11 @@ def upgrade() -> None:
         "users",
         sa.Column("id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("login", sa.String(length=64), nullable=False),
-        sa.Column("email", sa.String(length=255), nullable=False),
         sa.Column("password_hash", sa.String(length=255), nullable=False),
-        sa.Column("is_verified", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_users_login"), "users", ["login"], unique=True)
-    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
 
     op.create_table(
         "projects",
@@ -73,7 +70,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("filename", sa.String(length=255), nullable=False),
         sa.Column("content_type", sa.String(length=128), nullable=False),
-        sa.Column("current_version", sa.Integer(), nullable=False),
+        sa.Column("s3_key", sa.String(length=512), nullable=False),
         sa.Column("size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("uploaded_by", sa.Uuid(as_uuid=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -82,6 +79,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["uploaded_by"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project_id", "filename", name="uq_documents_project_filename"),
+        sa.UniqueConstraint("s3_key"),
     )
     op.create_index(
         op.f("ix_documents_project_id"),
@@ -90,34 +88,9 @@ def upgrade() -> None:
         unique=False,
     )
 
-    op.create_table(
-        "document_versions",
-        sa.Column("id", sa.Uuid(as_uuid=True), nullable=False),
-        sa.Column("document_id", sa.Uuid(as_uuid=True), nullable=False),
-        sa.Column("version", sa.Integer(), nullable=False),
-        sa.Column("s3_key", sa.String(length=512), nullable=False),
-        sa.Column("size_bytes", sa.BigInteger(), nullable=False),
-        sa.Column("uploaded_by", sa.Uuid(as_uuid=True), nullable=True),
-        sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["uploaded_by"], ["users.id"], ondelete="SET NULL"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("document_id", "version", name="uq_document_versions_doc_version"),
-        sa.UniqueConstraint("s3_key"),
-    )
-    op.create_index(
-        op.f("ix_document_versions_document_id"),
-        "document_versions",
-        ["document_id"],
-        unique=False,
-    )
-
 
 def downgrade() -> None:
     """Drop core DocuSpace tables in reverse dependency order."""
-    op.drop_index(op.f("ix_document_versions_document_id"), table_name="document_versions")
-    op.drop_table("document_versions")
-
     op.drop_index(op.f("ix_documents_project_id"), table_name="documents")
     op.drop_table("documents")
 
@@ -128,6 +101,5 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_projects_name"), table_name="projects")
     op.drop_table("projects")
 
-    op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_index(op.f("ix_users_login"), table_name="users")
     op.drop_table("users")

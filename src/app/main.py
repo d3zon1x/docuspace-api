@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
-from app.api.routers.health import router as health_router
+from app.api.health import router as health_router
 from app.core.config import Settings, get_settings
 from app.core.database import DatabaseManager
 from app.core.errors import register_exception_handlers
