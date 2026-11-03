@@ -1,0 +1,491 @@
+{
+  "info": {
+    "_postman_id": "d8f5c7b2-91e4-4c6e-8b1a-7c9e66797425",
+    "name": "DocuSpace API",
+    "description": "DocuSpace API collection organized by category (Health, Auth, Projects, Documents). Includes automatic token and ID capture scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "project_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "login",
+      "value": "alex_dev",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "StrongPassword123!",
+      "type": "string"
+    },
+    {
+      "key": "invite_login",
+      "value": "maria_qa",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health & Readiness",
+      "item": [
+        {
+          "name": "GET /health (Liveness)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "GET /ready (DB Readiness)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ready",
+              "host": ["{{base_url}}"],
+              "path": ["ready"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Auth",
+      "item": [
+        {
+          "name": "POST /auth (Register Owner)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{login}}\",\n  \"password\": \"{{password}}\",\n  \"repeat_password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth",
+              "host": ["{{base_url}}"],
+              "path": ["auth"]
+            }
+          }
+        },
+        {
+          "name": "POST /auth (Register Participant to Invite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{invite_login}}\",\n  \"password\": \"{{password}}\",\n  \"repeat_password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth",
+              "host": ["{{base_url}}"],
+              "path": ["auth"]
+            }
+          }
+        },
+        {
+          "name": "POST /login (Auto-saves JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.access_token) {",
+                  "        pm.collectionVariables.set('access_token', data.access_token);",
+                  "        console.log('Saved access_token to collection variables');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{login}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": ["{{base_url}}"],
+              "path": ["login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Projects",
+      "item": [
+        {
+          "name": "POST /projects (Create Project — Auto-saves project_id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    if (data.id) {",
+                  "        pm.collectionVariables.set('project_id', data.id);",
+                  "        console.log('Saved project_id:', data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Q4 Architecture Review\",\n  \"description\": \"Design documents and RFCs for the Q4 platform migration.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/projects",
+              "host": ["{{base_url}}"],
+              "path": ["projects"]
+            }
+          }
+        },
+        {
+          "name": "GET /projects (List Accessible Projects)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/projects",
+              "host": ["{{base_url}}"],
+              "path": ["projects"]
+            }
+          }
+        },
+        {
+          "name": "GET /project/{project_id}/info (Get Project Details)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}/info",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}", "info"]
+            }
+          }
+        },
+        {
+          "name": "PUT /project/{project_id}/info (Update Project Details)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Q4 Architecture Review (Updated)\",\n  \"description\": \"Approved RFCs and migration runbooks.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}/info",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}", "info"]
+            }
+          }
+        },
+        {
+          "name": "POST /project/{project_id}/invite (Invite Participant)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}/invite?user={{invite_login}}",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}", "invite"],
+              "query": [
+                {
+                  "key": "user",
+                  "value": "{{invite_login}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE /project/{project_id} (Delete Project — Owner Only)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Documents",
+      "item": [
+        {
+          "name": "GET /project/{project_id}/documents (List Project Documents)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}/documents",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}", "documents"]
+            }
+          }
+        },
+        {
+          "name": "POST /project/{project_id}/documents (Upload .pdf / .docx)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const data = pm.response.json();",
+                  "    if (Array.isArray(data) && data.length > 0 && data[0].id) {",
+                  "        pm.collectionVariables.set('document_id', data[0].id);",
+                  "        console.log('Saved document_id:', data[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/project/{{project_id}}/documents",
+              "host": ["{{base_url}}"],
+              "path": ["project", "{{project_id}}", "documents"]
+            }
+          }
+        },
+        {
+          "name": "GET /document/{document_id} (Download Document)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/document/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["document", "{{document_id}}"]
+            }
+          }
+        },
+        {
+          "name": "PUT /document/{document_id} (Replace Document File)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/document/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["document", "{{document_id}}"]
+            }
+          }
+        },
+        {
+          "name": "DELETE /document/{document_id} (Delete Document)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/document/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["document", "{{document_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
