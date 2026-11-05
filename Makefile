@@ -48,8 +48,8 @@ test:
 migrate:
 	$(UV) run alembic upgrade head
 
-# DB in Docker
+# DB + LocalStack in Docker
 dev:
-	docker compose up -d db
+	docker compose up -d db localstack
 
 local: dev

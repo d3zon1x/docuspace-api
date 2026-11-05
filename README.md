@@ -22,18 +22,25 @@ Local API (Postgres in Docker, API with reload):
 make dev
 ```
 
-## Layout
+## Architecture & Code Structure Overview
+
+DocuSpace follows a 3-layer separation (**API → Business Logic → Data Access**):
+
+1. **API Layer (`src/app/api/`)** — FastAPI routes and Pydantic request/response schemas colocated in the same module (`health.py`, `auth.py`, `projects.py`, `documents.py`), plus dependency injection wiring (`dependencies.py`). Handles HTTP parsing, status codes, and JWT extraction without embedding business rules.
+2. **Service / Business Logic Layer (`src/app/services/`)** — Pure application workflows (`AuthService`, `ProjectService`, `DocumentService`, `S3StorageService`). Enforces role-based permissions (`owner` vs `participant`), file type/size validation (`.pdf`, `.docx`), and project storage quotas. Depends on repository/storage `Protocol` interfaces rather than concrete ORM sessions.
+3. **Repository / Data Access Layer (`src/app/repositories/` & `src/app/models/`)** — Normalized SQLAlchemy 2.0 ORM models (`User`, `Project`, `ProjectMember`, `Document`) and repository classes (`UserRepository`, `ProjectRepository`, `DocumentRepository`) managing PostgreSQL queries and transactions, with schema migrations versioned via Alembic (`migrations/`).
 
 ```text
 src/app/
-  api/            # routes and request/response schemas defined together
-  services/       # business logic
-  repositories/   # data access
-  models/         # ORM / data models
-  core/           # config, database, errors, security
-  main.py         # FastAPI app factory
+  api/            # FastAPI routes + colocated Pydantic schemas (health, auth, projects, documents)
+  services/       # Business logic (auth, project, document, S3/in-memory storage)
+  repositories/   # Data access repositories + Protocol interfaces
+  models/         # SQLAlchemy 2.0 ORM models (users, projects, project_members, documents)
+  core/           # Settings (pydantic-settings), DB engine/session, unified errors, JWT/bcrypt
+  main.py         # FastAPI app factory & lifespan
 migrations/       # Alembic migrations
-tests/
+postman/          # Ready-to-import Postman collection
+tests/            # Unit (AAA) and PostgreSQL integration tests
 ```
 
 ## Make targets

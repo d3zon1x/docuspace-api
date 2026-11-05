@@ -17,15 +17,23 @@ services:
       retries: 10
 
   localstack:
-    image: localstack/localstack:3.8
+    image: localstack/localstack-pro:latest
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     environment:
       SERVICES: s3,sqs,lambda
       AWS_DEFAULT_REGION: us-east-1
+      PERSISTENCE: 1
+      DEBUG: 0
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:-}
     ports:
       - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health >/dev/null"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4566/_localstack/health', timeout=3)"]
       interval: 5s
       timeout: 5s
       retries: 15
@@ -49,3 +57,4 @@ services:
 
 volumes:
   postgres_data:
+  localstack_data:

@@ -2,14 +2,24 @@ import uuid
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.models.project import Project, ProjectRole
+from app.repositories.document import DocumentRepositoryProtocol
 from app.repositories.project import ProjectRepositoryProtocol
 from app.repositories.user import UserRepositoryProtocol
+from app.services.storage import StorageServiceProtocol
 
 
 class ProjectService:
-    def __init__(self, project_repository: ProjectRepositoryProtocol, user_repository: UserRepositoryProtocol) -> None:
+    def __init__(
+        self,
+        project_repository: ProjectRepositoryProtocol,
+        user_repository: UserRepositoryProtocol,
+        document_repository: DocumentRepositoryProtocol | None = None,
+        storage_service: StorageServiceProtocol | None = None,
+    ) -> None:
         self._projects = project_repository
         self._users = user_repository
+        self._documents = document_repository
+        self._storage = storage_service
 
     def create_project(self, *, owner_id: uuid.UUID, name: str, description: str) -> tuple[Project, ProjectRole]:
         return self._projects.create_with_owner(owner_id=owner_id, name=name, description=description)
@@ -45,6 +55,9 @@ class ProjectService:
                 "Only the project owner can delete the project.",
                 code="OWNER_REQUIRED",
             )
+        if self._documents is not None and self._storage is not None:
+            for doc in self._documents.list_for_project(project.id):
+                self._storage.delete(key=doc.s3_key)
         self._projects.delete(project)
 
     def invite_user(self, *, project_id: uuid.UUID, inviter_id: uuid.UUID, target_login: str) -> ProjectRole:

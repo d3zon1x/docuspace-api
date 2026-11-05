@@ -8,6 +8,8 @@ from app.core.errors import NotFoundError
 
 
 class StorageServiceProtocol(Protocol):
+    def ensure_bucket(self) -> None: ...
+
     def upload(self, *, key: str, data: bytes, content_type: str) -> None: ...
 
     def download(self, *, key: str) -> bytes: ...
@@ -28,7 +30,7 @@ class S3StorageService(StorageServiceProtocol):
         )
         self._bucket_ensured = False
 
-    def _ensure_bucket(self) -> None:
+    def ensure_bucket(self) -> None:
         if self._bucket_ensured:
             return
         try:
@@ -44,7 +46,7 @@ class S3StorageService(StorageServiceProtocol):
         self._bucket_ensured = True
 
     def upload(self, *, key: str, data: bytes, content_type: str) -> None:
-        self._ensure_bucket()
+        self.ensure_bucket()
         self._client.put_object(
             Bucket=self._bucket,
             Key=key,
@@ -53,7 +55,7 @@ class S3StorageService(StorageServiceProtocol):
         )
 
     def download(self, *, key: str) -> bytes:
-        self._ensure_bucket()
+        self.ensure_bucket()
         try:
             response = self._client.get_object(Bucket=self._bucket, Key=key)
             return bytes(response["Body"].read())
@@ -64,13 +66,16 @@ class S3StorageService(StorageServiceProtocol):
             ) from exc
 
     def delete(self, *, key: str) -> None:
-        self._ensure_bucket()
+        self.ensure_bucket()
         self._client.delete_object(Bucket=self._bucket, Key=key)
 
 
 class InMemoryStorageService(StorageServiceProtocol):
     def __init__(self) -> None:
         self._objects: dict[str, bytes] = {}
+
+    def ensure_bucket(self) -> None:
+        return None
 
     def upload(self, *, key: str, data: bytes, content_type: str) -> None:
         _ = content_type
