@@ -44,6 +44,7 @@ jobs:
           --health-retries=10
     env:
       DATABASE_URL: postgresql+psycopg://docuspace:docuspace@localhost:5432/docuspace
+      STORAGE_BACKEND: memory
     steps:
       - uses: actions/checkout@v5
 

@@ -25,7 +25,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if resolved_settings.storage_backend == "memory"
             else S3StorageService(resolved_settings)
         )
-        storage_service.ensure_bucket()
         app.state.settings = resolved_settings
         app.state.db_manager = db_manager
         app.state.db_checker = db_manager.check_connection
