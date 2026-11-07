@@ -1,23 +1,11 @@
-from typing import Protocol
-
 import boto3
 from botocore.exceptions import ClientError
 
-from app.core.config import Settings
-from app.core.errors import NotFoundError
+from app.config import Settings
+from app.errors import DocumentNotFoundError
 
 
-class StorageServiceProtocol(Protocol):
-    def ensure_bucket(self) -> None: ...
-
-    def upload(self, *, key: str, data: bytes, content_type: str) -> None: ...
-
-    def download(self, *, key: str) -> bytes: ...
-
-    def delete(self, *, key: str) -> None: ...
-
-
-class S3StorageService(StorageServiceProtocol):
+class S3Storage:
     def __init__(self, settings: Settings) -> None:
         self._bucket = settings.s3_bucket
         self._region = settings.s3_region
@@ -30,7 +18,7 @@ class S3StorageService(StorageServiceProtocol):
         )
         self._bucket_ensured = False
 
-    def ensure_bucket(self) -> None:
+    def _ensure_bucket(self) -> None:
         if self._bucket_ensured:
             return
         try:
@@ -46,7 +34,7 @@ class S3StorageService(StorageServiceProtocol):
         self._bucket_ensured = True
 
     def upload(self, *, key: str, data: bytes, content_type: str) -> None:
-        self.ensure_bucket()
+        self._ensure_bucket()
         self._client.put_object(
             Bucket=self._bucket,
             Key=key,
@@ -55,39 +43,32 @@ class S3StorageService(StorageServiceProtocol):
         )
 
     def download(self, *, key: str) -> bytes:
-        self.ensure_bucket()
+        self._ensure_bucket()
         try:
             response = self._client.get_object(Bucket=self._bucket, Key=key)
             return bytes(response["Body"].read())
         except ClientError as exc:
-            raise NotFoundError(
-                "Document content not found in storage.",
-                code="DOCUMENT_STORAGE_NOT_FOUND",
-            ) from exc
+            raise DocumentNotFoundError("Document content not found in storage") from exc
 
     def delete(self, *, key: str) -> None:
-        self.ensure_bucket()
+        self._ensure_bucket()
         self._client.delete_object(Bucket=self._bucket, Key=key)
 
 
-class InMemoryStorageService(StorageServiceProtocol):
+class InMemoryStorage:
     def __init__(self) -> None:
         self._objects: dict[str, bytes] = {}
 
-    def ensure_bucket(self) -> None:
-        return None
-
     def upload(self, *, key: str, data: bytes, content_type: str) -> None:
-        _ = content_type
         self._objects[key] = data
 
     def download(self, *, key: str) -> bytes:
         if key not in self._objects:
-            raise NotFoundError(
-                "Document content not found in storage.",
-                code="DOCUMENT_STORAGE_NOT_FOUND",
-            )
+            raise DocumentNotFoundError("Document content not found in storage")
         return self._objects[key]
 
     def delete(self, *, key: str) -> None:
         self._objects.pop(key, None)
+
+
+StorageBackend = S3Storage | InMemoryStorage

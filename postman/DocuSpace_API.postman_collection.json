@@ -18,12 +18,12 @@
     },
     {
       "key": "project_id",
-      "value": "",
+      "value": "1",
       "type": "string"
     },
     {
       "key": "document_id",
-      "value": "",
+      "value": "1",
       "type": "string"
     },
     {
