@@ -1,22 +1,19 @@
 from collections.abc import Iterator
 from typing import Annotated, cast
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.core.config import Settings, get_settings
-from app.core.database import DatabaseManager
-from app.core.errors import UnauthorizedError
-from app.core.security import decode_access_token
-from app.models.user import User
-from app.repositories.document import DocumentRepository, DocumentRepositoryProtocol
-from app.repositories.project import ProjectRepository, ProjectRepositoryProtocol
-from app.repositories.user import UserRepository, UserRepositoryProtocol
-from app.services.auth import AuthService
-from app.services.document import DocumentService
-from app.services.project import ProjectService
-from app.services.storage import InMemoryStorageService, S3StorageService, StorageServiceProtocol
+from app.config import Settings, get_settings
+from app.database import DatabaseManager
+from app.errors import InvalidTokenError
+from app.models import User
+from app.repositories.document import DocumentRepository
+from app.repositories.project import ProjectRepository
+from app.repositories.storage import InMemoryStorage, S3Storage, StorageBackend
+from app.repositories.user import UserRepository
+from app.security import decode_access_token
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -40,71 +37,60 @@ def get_db_session(request: Request) -> Iterator[Session]:
         session.close()
 
 
-def get_storage_service(
+def get_storage(
     request: Request,
     settings: Annotated[Settings, Depends(get_app_settings)],
-) -> StorageServiceProtocol:
-    storage = getattr(request.app.state, "storage_service", None)
+) -> StorageBackend:
+    storage = getattr(request.app.state, "storage", None)
     if storage is not None:
-        return cast(StorageServiceProtocol, storage)
+        return cast(StorageBackend, storage)
     if settings.storage_backend == "memory":
-        return InMemoryStorageService()
-    return S3StorageService(settings)
+        return InMemoryStorage()
+    return S3Storage(settings)
 
 
-def get_user_repository(session: Annotated[Session, Depends(get_db_session)]) -> UserRepositoryProtocol:
+def get_user_repository(session: Annotated[Session, Depends(get_db_session)]) -> UserRepository:
     return UserRepository(session)
 
 
-def get_project_repository(session: Annotated[Session, Depends(get_db_session)]) -> ProjectRepositoryProtocol:
-    return ProjectRepository(session)
+def get_project_repository(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StorageBackend, Depends(get_storage)],
+) -> ProjectRepository:
+    return ProjectRepository(session, storage)
 
 
-def get_document_repository(session: Annotated[Session, Depends(get_db_session)]) -> DocumentRepositoryProtocol:
-    return DocumentRepository(session)
-
-
-def get_auth_service(
-    user_repo: Annotated[UserRepositoryProtocol, Depends(get_user_repository)],
+def get_document_repository(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StorageBackend, Depends(get_storage)],
     settings: Annotated[Settings, Depends(get_app_settings)],
-) -> AuthService:
-    return AuthService(user_repo, settings)
-
-
-def get_project_service(
-    project_repo: Annotated[ProjectRepositoryProtocol, Depends(get_project_repository)],
-    user_repo: Annotated[UserRepositoryProtocol, Depends(get_user_repository)],
-    document_repo: Annotated[DocumentRepositoryProtocol, Depends(get_document_repository)],
-    storage_service: Annotated[StorageServiceProtocol, Depends(get_storage_service)],
-) -> ProjectService:
-    return ProjectService(project_repo, user_repo, document_repo, storage_service)
-
-
-def get_document_service(
-    document_repo: Annotated[DocumentRepositoryProtocol, Depends(get_document_repository)],
-    project_repo: Annotated[ProjectRepositoryProtocol, Depends(get_project_repository)],
-    storage_service: Annotated[StorageServiceProtocol, Depends(get_storage_service)],
-    settings: Annotated[Settings, Depends(get_app_settings)],
-) -> DocumentService:
-    return DocumentService(document_repo, project_repo, storage_service, settings)
+) -> DocumentRepository:
+    return DocumentRepository(session, storage, settings)
 
 
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
-    user_repo: Annotated[UserRepositoryProtocol, Depends(get_user_repository)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
     settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> User:
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise UnauthorizedError(
-            "Missing or invalid Authorization header.",
-            code="UNAUTHORIZED",
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
         )
 
-    user_id = decode_access_token(credentials.credentials, settings)
+    try:
+        user_id = decode_access_token(credentials.credentials, settings)
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+        ) from e
+
     user = user_repo.get_by_id(user_id)
     if user is None:
-        raise UnauthorizedError(
-            "Authenticated user no longer exists.",
-            code="UNAUTHORIZED",
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user no longer exists",
         )
     return user

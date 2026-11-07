@@ -1,12 +1,17 @@
-import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.dependencies import get_auth_service
-from app.services.auth import AuthService
+from app.api.dependencies import get_app_settings, get_user_repository
+from app.config import Settings
+from app.errors import (
+    InvalidCredentialsError,
+    PasswordsDoNotMatchError,
+    UserAlreadyExistsError,
+)
+from app.repositories.user import UserRepository
 
 router = APIRouter(tags=["auth"])
 
@@ -20,7 +25,7 @@ class RegisterRequest(BaseModel):
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
+    id: int
     login: str
     created_at: datetime
 
@@ -38,27 +43,47 @@ class TokenResponse(BaseModel):
 
 @router.post("/auth", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(
-    payload: RegisterRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]
+    payload: RegisterRequest,
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
 ) -> UserResponse:
-    user = auth_service.register(
-        login=payload.login,
-        password=payload.password,
-        repeat_password=payload.repeat_password,
-    )
-    return UserResponse.model_validate(user)
+    try:
+        user = user_repo.register(
+            login=payload.login,
+            password=payload.password,
+            repeat_password=payload.repeat_password,
+        )
+        return UserResponse.model_validate(user)
+    except PasswordsDoNotMatchError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match",
+        ) from e
+    except UserAlreadyExistsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with this login already exists",
+        ) from e
 
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 def login_user(
     payload: LoginRequest,
-    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repository)],
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> TokenResponse:
-    access_token, expires_in = auth_service.login(
-        login=payload.login,
-        password=payload.password,
-    )
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=expires_in,
-    )
+    try:
+        access_token, expires_in = user_repo.authenticate(
+            login=payload.login,
+            password=payload.password,
+            settings=settings,
+        )
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=expires_in,
+        )
+    except InvalidCredentialsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid login or password",
+        ) from e

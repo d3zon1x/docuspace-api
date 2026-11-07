@@ -1,33 +1,23 @@
-import uuid
-from typing import Protocol
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.project import Project, ProjectMember, ProjectRole
+from app.errors import (
+    AlreadyProjectMemberError,
+    NoAccessError,
+    OwnerRequiredError,
+    ProjectNotFoundError,
+    UserNotFoundError,
+)
+from app.models import Document, Project, ProjectMember, ProjectRole, User
+from app.repositories.storage import StorageBackend
 
 
-class ProjectRepositoryProtocol(Protocol):
-    def create_with_owner(self, *, owner_id: uuid.UUID, name: str, description: str) -> tuple[Project, ProjectRole]: ...
-
-    def list_for_user(self, user_id: uuid.UUID) -> list[tuple[Project, ProjectRole]]: ...
-
-    def get_for_user(self, *, project_id: uuid.UUID, user_id: uuid.UUID) -> tuple[Project, ProjectRole] | None: ...
-
-    def update(self, project: Project, *, name: str, description: str) -> Project: ...
-
-    def delete(self, project: Project) -> None: ...
-
-    def is_member(self, *, project_id: uuid.UUID, user_id: uuid.UUID) -> bool: ...
-
-    def add_member(self, *, project_id: uuid.UUID, user_id: uuid.UUID, role: ProjectRole) -> ProjectMember: ...
-
-
-class ProjectRepository(ProjectRepositoryProtocol):
-    def __init__(self, session: Session) -> None:
+class ProjectRepository:
+    def __init__(self, session: Session, storage: StorageBackend | None = None) -> None:
         self._session = session
+        self._storage = storage
 
-    def create_with_owner(self, *, owner_id: uuid.UUID, name: str, description: str) -> tuple[Project, ProjectRole]:
+    def create(self, *, owner_id: int, name: str, description: str) -> tuple[Project, ProjectRole]:
         project = Project(name=name, description=description, owner_id=owner_id, total_size_bytes=0)
         self._session.add(project)
         self._session.flush()
@@ -38,7 +28,7 @@ class ProjectRepository(ProjectRepositoryProtocol):
         self._session.refresh(project)
         return project, ProjectRole.OWNER
 
-    def list_for_user(self, user_id: uuid.UUID) -> list[tuple[Project, ProjectRole]]:
+    def list_for_user(self, user_id: int) -> list[tuple[Project, ProjectRole]]:
         stmt = (
             select(Project, ProjectMember.role)
             .join(ProjectMember, ProjectMember.project_id == Project.id)
@@ -48,34 +38,56 @@ class ProjectRepository(ProjectRepositoryProtocol):
         rows = self._session.execute(stmt).all()
         return [(row[0], row[1]) for row in rows]
 
-    def get_for_user(self, *, project_id: uuid.UUID, user_id: uuid.UUID) -> tuple[Project, ProjectRole] | None:
-        stmt = (
-            select(Project, ProjectMember.role)
-            .join(ProjectMember, ProjectMember.project_id == Project.id)
-            .where(Project.id == project_id, ProjectMember.user_id == user_id)
-        )
-        row = self._session.execute(stmt).first()
-        if row is None:
-            return None
-        return row[0], row[1]
+    def get_for_user(self, *, project_id: int, user_id: int) -> tuple[Project, ProjectRole]:
+        project = self._session.get(Project, project_id)
+        if project is None:
+            raise ProjectNotFoundError("Project not found")
 
-    def update(self, project: Project, *, name: str, description: str) -> Project:
+        membership = self._session.get(ProjectMember, (project_id, user_id))
+        if membership is None:
+            raise NoAccessError("User does not have access to this project")
+
+        return project, membership.role
+
+    def update(self, *, project_id: int, user_id: int, name: str, description: str) -> tuple[Project, ProjectRole]:
+        project, role = self.get_for_user(project_id=project_id, user_id=user_id)
         project.name = name
         project.description = description
         self._session.commit()
         self._session.refresh(project)
-        return project
+        return project, role
 
-    def delete(self, project: Project) -> None:
+    def delete(self, *, project_id: int, user_id: int) -> None:
+        project, role = self.get_for_user(project_id=project_id, user_id=user_id)
+        if role != ProjectRole.OWNER:
+            raise OwnerRequiredError("Only the project owner can delete the project")
+
+        if self._storage is not None:
+            docs_stmt = select(Document).where(Document.project_id == project.id)
+            for doc in self._session.scalars(docs_stmt).all():
+                self._storage.delete(key=doc.s3_key)
+
         self._session.delete(project)
         self._session.commit()
 
-    def is_member(self, *, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-        stmt = select(ProjectMember).where(ProjectMember.project_id == project_id, ProjectMember.user_id == user_id)
-        return self._session.scalar(stmt) is not None
+    def invite_user(self, *, project_id: int, inviter_id: int, target_login: str) -> ProjectRole:
+        project, role = self.get_for_user(project_id=project_id, user_id=inviter_id)
+        if role != ProjectRole.OWNER:
+            raise OwnerRequiredError("Only the project owner can invite users")
 
-    def add_member(self, *, project_id: uuid.UUID, user_id: uuid.UUID, role: ProjectRole) -> ProjectMember:
-        membership = ProjectMember(project_id=project_id, user_id=user_id, role=role)
+        target_user = self._session.scalar(select(User).where(User.login == target_login))
+        if target_user is None:
+            raise UserNotFoundError(f"User '{target_login}' not found")
+
+        existing = self._session.get(ProjectMember, (project.id, target_user.id))
+        if existing is not None:
+            raise AlreadyProjectMemberError("User is already a member of the project")
+
+        membership = ProjectMember(
+            project_id=project.id,
+            user_id=target_user.id,
+            role=ProjectRole.PARTICIPANT,
+        )
         self._session.add(membership)
         self._session.commit()
-        return membership
+        return membership.role

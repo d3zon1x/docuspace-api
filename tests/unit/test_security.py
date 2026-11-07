@@ -1,13 +1,9 @@
-"""Unit tests for password hashing and JWT access tokens."""
-
-import uuid
-
 import jwt
 import pytest
 
-from app.core.config import Settings
-from app.core.errors import UnauthorizedError
-from app.core.security import (
+from app.config import Settings
+from app.errors import InvalidTokenError
+from app.security import (
     create_access_token,
     decode_access_token,
     hash_password,
@@ -24,7 +20,6 @@ def _test_settings() -> Settings:
 
 
 def test_password_hash_and_verify() -> None:
-    """Hashed passwords verify against the original plain password and reject wrong ones."""
     digest = hash_password("StrongPass123!")
 
     assert digest != "StrongPass123!"
@@ -33,27 +28,24 @@ def test_password_hash_and_verify() -> None:
 
 
 def test_access_token_round_trip() -> None:
-    """Access JWT encodes and decodes the user UUID."""
     settings = _test_settings()
-    user_id = uuid.uuid4()
 
-    token = create_access_token(user_id, settings)
+    token = create_access_token(42, settings)
     decoded_id = decode_access_token(token, settings)
 
-    assert decoded_id == user_id
+    assert decoded_id == 42
 
 
 def test_decode_access_token_rejects_invalid_token() -> None:
-    """Malformed tokens or tokens with invalid UUID subject raise UnauthorizedError."""
     settings = _test_settings()
 
-    with pytest.raises(UnauthorizedError):
+    with pytest.raises(InvalidTokenError):
         decode_access_token("not-a-jwt", settings)
 
     bad_sub_token = jwt.encode(
-        {"sub": "not-a-uuid", "iat": 1, "exp": 9999999999},
+        {"sub": "not-an-int", "iat": 1, "exp": 9999999999},
         settings.jwt_secret,
         algorithm=settings.jwt_algorithm,
     )
-    with pytest.raises(UnauthorizedError):
+    with pytest.raises(InvalidTokenError):
         decode_access_token(bad_sub_token, settings)

@@ -1,14 +1,13 @@
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from jwt import InvalidTokenError
+from jwt import PyJWTError
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
 
-from app.core.config import Settings
-from app.core.errors import UnauthorizedError
+from app.config import Settings
+from app.errors import InvalidTokenError
 
 _password_hasher = PasswordHash((BcryptHasher(),))
 
@@ -21,7 +20,7 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     return _password_hasher.verify(plain_password, password_hash)
 
 
-def create_access_token(user_id: uuid.UUID, settings: Settings) -> str:
+def create_access_token(user_id: int, settings: Settings) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": str(user_id),
@@ -31,7 +30,7 @@ def create_access_token(user_id: uuid.UUID, settings: Settings) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def decode_access_token(token: str, settings: Settings) -> uuid.UUID:
+def decode_access_token(token: str, settings: Settings) -> int:
     try:
         payload = jwt.decode(
             token,
@@ -39,16 +38,6 @@ def decode_access_token(token: str, settings: Settings) -> uuid.UUID:
             algorithms=[settings.jwt_algorithm],
             options={"require": ["sub", "iat", "exp"]},
         )
-    except InvalidTokenError as exc:
-        raise UnauthorizedError(
-            "Invalid or expired access token.",
-            code="INVALID_TOKEN",
-        ) from exc
-
-    try:
-        return uuid.UUID(str(payload["sub"]))
-    except (ValueError, KeyError) as exc:
-        raise UnauthorizedError(
-            "Invalid token subject.",
-            code="INVALID_TOKEN",
-        ) from exc
+        return int(payload["sub"])
+    except (PyJWTError, ValueError, KeyError) as exc:
+        raise InvalidTokenError("Invalid or expired access token") from exc
