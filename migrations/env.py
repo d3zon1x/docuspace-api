@@ -1,13 +1,11 @@
-"""Alembic migration environment configured from `app.core.config.Settings`."""
-
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import app.models  # noqa: F401
-from app.core.config import get_settings
-from app.core.database import Base
+from app.config import get_settings
+from app.database import Base
 
 config = context.config
 
@@ -21,7 +19,6 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -35,7 +32,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode using synchronous psycopg."""
     configuration = config.get_section(config.config_ini_section, {})
     connectable = engine_from_config(
         configuration,

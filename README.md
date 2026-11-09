@@ -1,22 +1,21 @@
 # DocuSpace API
 
-Layered FastAPI service: **api → services → repositories**.
+FastAPI service for managing projects and documents (**api → repositories + storage**).
 
 Managed with **[uv](https://docs.astral.sh/uv/)** (venv, installs, lockfile).
 
 ## Quick start
 
 ```bash
-# install uv once: https://docs.astral.sh/uv/getting-started/installation/
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 cp .env.example .env
-make install          # uv sync --all-groups  → creates .venv + installs deps
-make up               # docker compose: db + api
+make install          # uv sync --all-groups
+make up               # docker compose: db + localstack + api
 curl -s localhost:8000/health
 ```
 
-Local API (Postgres in Docker, API with reload):
+Local API (Postgres + LocalStack in Docker):
 
 ```bash
 make dev
@@ -24,23 +23,25 @@ make dev
 
 ## Architecture & Code Structure Overview
 
-DocuSpace follows a 3-layer separation (**API → Business Logic → Data Access**):
+DocuSpace keeps a flat, straightforward structure without unnecessary intermediate layers:
 
-1. **API Layer (`src/app/api/`)** — FastAPI routes and Pydantic request/response schemas colocated in the same module (`health.py`, `auth.py`, `projects.py`, `documents.py`), plus dependency injection wiring (`dependencies.py`). Handles HTTP parsing, status codes, and JWT extraction without embedding business rules.
-2. **Service / Business Logic Layer (`src/app/services/`)** — Pure application workflows (`AuthService`, `ProjectService`, `DocumentService`, `S3StorageService`). Enforces role-based permissions (`owner` vs `participant`), file type/size validation (`.pdf`, `.docx`), and project storage quotas. Depends on repository/storage `Protocol` interfaces rather than concrete ORM sessions.
-3. **Repository / Data Access Layer (`src/app/repositories/` & `src/app/models/`)** — Normalized SQLAlchemy 2.0 ORM models (`User`, `Project`, `ProjectMember`, `Document`) and repository classes (`UserRepository`, `ProjectRepository`, `DocumentRepository`) managing PostgreSQL queries and transactions, with schema migrations versioned via Alembic (`migrations/`).
+1. **API Layer (`src/app/api/`)** — Self-documenting FastAPI routes with colocated Pydantic request/response models (`health.py`, `auth.py`, `projects.py`, `documents.py`) and explicit `try ... except -> HTTPException` error mapping.
+2. **Repositories & Storage (`src/app/repositories/`)** — `UserRepository`, `ProjectRepository`, `DocumentRepository`, and `S3Storage` / `InMemoryStorage` encapsulating database operations, permission checks, and S3 object storage.
+3. **Root Modules (`src/app/`)** — `models.py` (all SQLAlchemy 2.0 ORM models), `database.py`, `config.py`, `security.py`, `errors.py` (plain domain exceptions), and `main.py`.
 
 ```text
 src/app/
   api/            # FastAPI routes + colocated Pydantic schemas (health, auth, projects, documents)
-  services/       # Business logic (auth, project, document, S3/in-memory storage)
-  repositories/   # Data access repositories + Protocol interfaces
-  models/         # SQLAlchemy 2.0 ORM models (users, projects, project_members, documents)
-  core/           # Settings (pydantic-settings), DB engine/session, unified errors, JWT/bcrypt
+  repositories/   # UserRepository, ProjectRepository, DocumentRepository, S3/in-memory storage
+  config.py       # Settings (pydantic-settings)
+  database.py     # SQLAlchemy engine & session factory
+  errors.py       # Plain domain exceptions
   main.py         # FastAPI app factory & lifespan
+  models.py       # SQLAlchemy 2.0 ORM models (users, projects, project_members, documents)
+  security.py     # Password hashing (bcrypt) & JWT helpers
 migrations/       # Alembic migrations
 postman/          # Ready-to-import Postman collection
-tests/            # Unit (AAA) and PostgreSQL integration tests
+tests/            # Unit and PostgreSQL integration tests
 ```
 
 ## Make targets
@@ -49,9 +50,9 @@ tests/            # Unit (AAA) and PostgreSQL integration tests
 | --- | --- |
 | `make install` / `make sync` | `uv sync --all-groups` |
 | `make lock` | Refresh `uv.lock` |
-| `make up` | Docker Compose (db + api) |
+| `make up` | Docker Compose (db + localstack + api) |
 | `make down` | Stop stack |
-| `make dev` | DB in Docker, migrations + API with reload (`uv run uvicorn …`) |
+| `make dev` | Start DB + LocalStack in Docker |
 | `make migrate` | Apply Alembic migrations (`uv run alembic upgrade head`) |
 | `make lint` | ruff + mypy via `uv run` |
 | `make test` | pytest via `uv run` |
@@ -64,21 +65,13 @@ tests/            # Unit (AAA) and PostgreSQL integration tests
 - User registration and JWT-based authentication (1-hour token lifetime).
 - Lifecycle management of projects (creation, metadata updates, deletion, storage quota tracking).
 - Role-based access control with two roles: **owner** (full control, deletion, invitations) and **participant** (view and modify project details and documents, cannot delete project or invite users).
-- Management of project documents (`.pdf`, `.docx`) stored in AWS S3 with asynchronous size calculation and quota enforcement via AWS Lambda.
+- Management of project documents (`.pdf`, `.docx`) stored in AWS S3.
 - Project sharing by inviting registered users (`login`) as project participants.
 
 ### Conventions
 - **Authentication:** All business endpoints require `Authorization: Bearer <jwt_token>` issued by `POST /login` (valid for 1 hour).
 - **Content Format:** All requests and responses use `application/json`, except document upload (`multipart/form-data`) and document download (binary file stream).
-- **Unified Error Format:** All error responses (`4xx` / `5xx`) return a standardized JSON envelope:
-  ```json
-  {
-    "error": {
-      "code": "PROJECT_NOT_FOUND",
-      "message": "Project not found or user does not have access."
-    }
-  }
-  ```
+- **Error Format:** Error responses use standard FastAPI `{"detail": "..."}` messages with appropriate HTTP status codes.
 
 ### Endpoints Overview
 
@@ -117,14 +110,14 @@ Create a new user account using a unique `login` and matching password confirmat
 **Response (`201 Created`):**
 ```json
 {
-  "id": "b3f1c2d0-8e41-4c7a-9b1f-12c9f7e10a11",
+  "id": 1,
   "login": "alex_dev",
   "created_at": "2026-11-02T14:00:00Z"
 }
 ```
 
 **Errors:**
-- `400` Passwords do not match or invalid login/password format.
+- `400` Passwords do not match.
 - `409` User with this `login` already exists.
 
 ---
@@ -169,7 +162,7 @@ Create a new project from the provided details and automatically assign the auth
 **Response (`201 Created`):**
 ```json
 {
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "id": 1,
   "name": "Q4 Architecture Review",
   "description": "Design documents and RFCs for the Q4 platform migration.",
   "role": "owner",
@@ -192,7 +185,7 @@ Retrieve all projects accessible to the authenticated user (as `owner` or `parti
 ```json
 [
   {
-    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "id": 1,
     "name": "Q4 Architecture Review",
     "description": "Design documents and RFCs for the Q4 platform migration.",
     "role": "owner",
@@ -214,7 +207,7 @@ Retrieve details for a specific project if the authenticated user has access.
 **Response (`200 OK`):**
 ```json
 {
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "id": 1,
   "name": "Q4 Architecture Review",
   "description": "Design documents and RFCs for the Q4 platform migration.",
   "role": "participant",
@@ -226,7 +219,8 @@ Retrieve details for a specific project if the authenticated user has access.
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `404` Project not found or user does not have access.
+- `403` User has no access to this project.
+- `404` Project not found.
 
 ---
 
@@ -244,7 +238,7 @@ Update a project's `name` and `description` (accessible to both `owner` and `par
 **Response (`200 OK`):**
 ```json
 {
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "id": 1,
   "name": "Q4 Architecture Review (Final)",
   "description": "Approved RFCs and migration runbooks.",
   "role": "owner",
@@ -256,7 +250,8 @@ Update a project's `name` and `description` (accessible to both `owner` and `par
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `404` Project not found or user does not have access.
+- `403` User has no access to this project.
+- `404` Project not found.
 - `422` Invalid project details.
 
 ---
@@ -267,15 +262,15 @@ Permanently delete a project and remove all associated documents from PostgreSQL
 **Response (`200 OK`):**
 ```json
 {
-  "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "id": 1,
   "status": "deleted"
 }
 ```
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `403` Forbidden (only the project `owner` can delete the project).
-- `404` Project not found or user does not have access.
+- `403` Only the project `owner` can delete the project.
+- `404` Project not found.
 
 ---
 
@@ -286,8 +281,8 @@ Return all documents attached to the specified project.
 ```json
 [
   {
-    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "project_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "id": 1,
+    "project_id": 1,
     "filename": "system_design.pdf",
     "content_type": "application/pdf",
     "size_bytes": 245760,
@@ -299,12 +294,13 @@ Return all documents attached to the specified project.
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `404` Project not found or user does not have access.
+- `403` User has no access to the corresponding project.
+- `404` Project not found.
 
 ---
 
 ### `POST /project/{project_id}/documents`
-Upload one or multiple documents (`.pdf`, `.docx`) to a project via `multipart/form-data`. Accessible to `owner` and `participant`. Filenames must be unique within the project.
+Upload one or multiple documents (`.pdf`, `.docx`) to a project via `multipart/form-data`. Accessible to `owner` and `participant`.
 
 **Request (`multipart/form-data`):**
 - `files`: one or more `.pdf` or `.docx` binary files.
@@ -313,8 +309,8 @@ Upload one or multiple documents (`.pdf`, `.docx`) to a project via `multipart/f
 ```json
 [
   {
-    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "project_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "id": 1,
+    "project_id": 1,
     "filename": "system_design.pdf",
     "content_type": "application/pdf",
     "size_bytes": 245760,
@@ -325,11 +321,13 @@ Upload one or multiple documents (`.pdf`, `.docx`) to a project via `multipart/f
 ```
 
 **Errors:**
-- `400` Unsupported file type (only `.pdf` and `.docx` allowed) or duplicate filenames in the same upload request.
+- `400` Empty upload or duplicate filenames in the same upload request.
 - `401` Missing or expired JWT.
-- `404` Project not found or user does not have access.
+- `403` User has no access to the corresponding project.
+- `404` Project not found.
 - `409` A document with the same `filename` already exists in this project.
 - `413` File size or total project storage quota exceeded.
+- `415` Unsupported file type (only `.pdf` and `.docx` allowed).
 
 ---
 
@@ -344,7 +342,8 @@ Download a specific document if the authenticated user has access to its parent 
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `404` Document not found or user does not have access to the parent project.
+- `403` User has no access to the corresponding project.
+- `404` Document not found.
 
 ---
 
@@ -357,8 +356,8 @@ Update (replace) the binary content of an existing document (`.pdf` or `.docx`).
 **Response (`200 OK`):**
 ```json
 {
-  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "project_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "id": 1,
+  "project_id": 1,
   "filename": "system_design.pdf",
   "content_type": "application/pdf",
   "size_bytes": 312400,
@@ -368,10 +367,11 @@ Update (replace) the binary content of an existing document (`.pdf` or `.docx`).
 ```
 
 **Errors:**
-- `400` Unsupported file format.
 - `401` Missing or expired JWT.
-- `404` Document not found or user does not have access.
+- `403` User has no access to the corresponding project.
+- `404` Document not found.
 - `413` Project storage quota exceeded.
+- `415` Unsupported file type.
 
 ---
 
@@ -381,14 +381,15 @@ Delete a document record and remove its object from AWS S3. Accessible to `owner
 **Response (`200 OK`):**
 ```json
 {
-  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "id": 1,
   "status": "deleted"
 }
 ```
 
 **Errors:**
 - `401` Missing or expired JWT.
-- `404` Document not found or user does not have access.
+- `403` User has no access to the corresponding project.
+- `404` Document not found.
 
 ---
 
@@ -398,7 +399,7 @@ Grant `participant` permissions on the project to another registered user identi
 **Response (`200 OK`):**
 ```json
 {
-  "project_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "project_id": 1,
   "invited_user": "maria_qa",
   "role": "participant"
 }

@@ -5,25 +5,22 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.core.config import Settings
+from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
-    """Declarative base class for future SQLAlchemy ORM models."""
+    pass
 
 
 @dataclass(slots=True)
 class DatabaseManager:
-    """Manages SQLAlchemy engine and session factory lifecycle."""
-
     engine: Engine
     session_factory: sessionmaker[Session]
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "DatabaseManager":
-        """Create a new DatabaseManager from application settings."""
         engine = create_engine(
             settings.database_url,
             pool_pre_ping=True,
@@ -38,7 +35,6 @@ class DatabaseManager:
         return cls(engine=engine, session_factory=session_factory)
 
     def check_connection(self) -> bool:
-        """Execute `SELECT 1` against PostgreSQL to verify database reachability."""
         try:
             with self.engine.connect() as connection:
                 return connection.execute(text("SELECT 1")).scalar() == 1
