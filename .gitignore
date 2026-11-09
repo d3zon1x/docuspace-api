@@ -14,7 +14,8 @@ htmlcov/
 .ruff_cache/
 .env
 .env.*
-!.env.example
+!.env.dev.example
+!.env.prod.example
 .idea/
 .vscode/
 .DS_Store

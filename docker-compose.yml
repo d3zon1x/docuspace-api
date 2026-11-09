@@ -20,7 +20,7 @@ services:
     image: localstack/localstack-pro:latest
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: .env.dev
         required: false
     environment:
       SERVICES: s3,sqs,lambda
@@ -42,7 +42,7 @@ services:
     build: .
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: .env.dev
         required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-docuspace}:${POSTGRES_PASSWORD:-docuspace}@db:5432/${POSTGRES_DB:-docuspace}
