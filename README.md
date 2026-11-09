@@ -9,7 +9,7 @@ Managed with **[uv](https://docs.astral.sh/uv/)** (venv, installs, lockfile).
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-cp .env.example .env
+cp .env.dev.example .env.dev
 make install          # uv sync --all-groups
 make up               # docker compose: db + localstack + api
 curl -s localhost:8000/health

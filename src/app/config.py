@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -7,12 +8,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.getenv("ENV_FILE", ".env.dev"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
 
+    app_env: Literal["dev", "prod"] = Field(default="dev")
     app_name: str = Field(default="DocuSpace API")
     debug: bool = Field(default=True)
     log_level: str = Field(default="INFO")
@@ -32,8 +34,8 @@ class Settings(BaseSettings):
     s3_bucket: str = Field(default="docuspace-documents", min_length=1)
     s3_region: str = Field(default="us-east-1", min_length=1)
     s3_endpoint_url: str | None = Field(default="http://localhost:4566")
-    aws_access_key_id: str = Field(default="test")
-    aws_secret_access_key: str = Field(default="test")
+    aws_access_key_id: str | None = Field(default="test")
+    aws_secret_access_key: str | None = Field(default="test")
 
     max_file_size_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
     max_project_size_bytes: int = Field(default=100 * 1024 * 1024, gt=0)

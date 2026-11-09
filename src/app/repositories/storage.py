@@ -1,3 +1,5 @@
+from typing import Any
+
 import boto3
 from botocore.exceptions import ClientError
 
@@ -9,14 +11,24 @@ class S3Storage:
     def __init__(self, settings: Settings) -> None:
         self._bucket = settings.s3_bucket
         self._region = settings.s3_region
-        self._client = boto3.client(
-            "s3",
-            region_name=settings.s3_region,
-            endpoint_url=settings.s3_endpoint_url or None,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-        )
-        self._bucket_ensured = False
+        self._is_prod = settings.app_env == "prod"
+
+        client_kwargs: dict[str, Any] = {
+            "region_name": settings.s3_region,
+        }
+        if not self._is_prod and settings.s3_endpoint_url:
+            client_kwargs["endpoint_url"] = settings.s3_endpoint_url
+
+        if (
+            settings.aws_access_key_id
+            and settings.aws_secret_access_key
+            and not (self._is_prod and settings.aws_access_key_id == "test")
+        ):
+            client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+
+        self._client = boto3.client("s3", **client_kwargs)
+        self._bucket_ensured = self._is_prod
 
     def _ensure_bucket(self) -> None:
         if self._bucket_ensured:
